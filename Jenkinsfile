@@ -8,7 +8,7 @@ pipeline{
     stages{
         stage('Checkout'){
             steps{
-                git branch: 'master', url: 'https://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@github.com/karoumbr/SpringPetClinic.git'
+                git branch: 'master', url: 'https://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@github.com/sghaiershaima/SpringPetClinique.git'
             }
         }
         stage('Build'){
