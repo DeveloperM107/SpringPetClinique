@@ -40,11 +40,76 @@ pipeline{
                 """
             }
         }
+          stage('OWASP Dependency Check') {
+    steps {
+        echo "Démarrage de OWASP Dependency Check..."
+        dependencyCheck additionalArguments: '--scan target/ --format HTML --out target', odcInstallation: 'owasp'
+        echo "Rapport OWASP généré."
+        bat 'dir target /s'
+    }
+}
+
+stage('Publish OWASP Report') {
+    steps {
+        publishHTML(target: [
+            allowMissing: false,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: 'target',
+            reportFiles: 'dependency-check-report.html',
+            reportName: 'OWASP Dependency Check Report'
+        ])
+        echo "Rapport HTML OWASP publié."
+    }
+}
         stage('Package'){
             steps{
                 bat 'mvn package'
             }
         }
+         post {
+        success {
+            emailext(
+                subject: "✅ Build réussi - Microservices",
+                body: """\
+Bonjour,
+
+Le pipeline Jenkins s’est terminé avec succès.
+
+Vous trouverez en pièce jointe :
+- Le rapport complet du pipeline (pipeline-report.txt)
+- Le rapport OWASP (dependency-check-report.html)
+
+Cordialement,
+Le serveur CI/CD
+""",
+                to: 'sghaiershaima4@gmail.com',
+                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
+                attachLog: true
+            )
+        }
+        failure {
+            emailext(
+                subject: "❌ Build échoué - Microservices",
+                body: """\
+Bonjour,
+
+Le pipeline Jenkins a échoué.
+
+Merci de consulter le fichier pipeline-report.txt ci-joint pour les détails.
+
+Cordialement,
+Le serveur CI/CD
+""",
+                to: 'sghaiershaima4@gmail.com',
+                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
+                attachLog: true
+            )
+        }
+        always {
+            archiveArtifacts artifacts: "${env.LOG_FILE}, target/dependency-check-report.html", allowEmptyArchive: true
+        }
+    }
         stage('Deploy'){
             steps{
                 bat 'java -jar target/spring-petclinic-2.1.0.BUILD-SNAPSHOT.jar'
