@@ -4,13 +4,13 @@ pipeline {
     tools {
         maven 'M3'
     }
+environment {
+    LOG_FILE = "pipeline-report.txt"
+    SONAR_PROJECT_KEY = "SonarTestProject"
+    SONAR_HOST_URL = "http://host.docker.internal:9003"
+    SONAR_TOKEN = credentials('SONAR_TOKEN')
+}
 
-    environment {
-        LOG_FILE = "pipeline-report.txt"
-        SONAR_PROJECT_KEY = "SonarTestProject"
-        SONAR_HOST_URL = "http://host.docker.internal:9003"
-
-    }
 
     stages {
 
