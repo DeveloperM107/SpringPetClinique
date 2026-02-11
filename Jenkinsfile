@@ -45,13 +45,19 @@ environment {
             }
 
 
-        stage('OWASP Dependency Check') {
-            steps {
-                echo "Démarrage de OWASP Dependency Check..."
-                dependencyCheck additionalArguments: '--scan target/ --format HTML --out target', odcInstallation: 'owasp'
-                sh 'dir target /s'
-            }
+       stage('OWASP Dependency Check') {
+    steps {
+        withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+            dependencyCheck additionalArguments: """
+                --scan target/ \
+                --format HTML \
+                --out target \
+                --nvdApiKey ${NVD_API_KEY}
+            """, odcInstallation: 'owasp'
         }
+        sh 'ls -R target'
+    }
+}
 
         stage('Publish OWASP Report') {
             steps {
