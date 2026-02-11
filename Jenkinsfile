@@ -8,7 +8,7 @@ pipeline {
     environment {
         LOG_FILE = "pipeline-report.txt"
         SONAR_PROJECT_KEY = "SonarTestProject"
-        SONAR_HOST_URL = "http://localhost:9002"
+        SONAR_HOST_URL = "http://localhost:9003"
     }
 
     stages {
@@ -22,24 +22,24 @@ pipeline {
 
         stage('Build') {
             steps {
-                bat 'mvn compile'
+                sh 'mvn compile'
             }
         }
 
         stage('Test') {
             steps {
-                bat 'mvn test'
+                sh 'mvn test'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 echo "Lancement de l'analyse SonarQube..."
-                bat """
+                sh """
                     mvn sonar:sonar ^
                     -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
                     -Dsonar.host.url=%SONAR_HOST_URL% ^
-                    -Dsonar.login=squ_11fa45440ad1afe61606a1c1a6eac09d139ac8a4 >> %LOG_FILE% 2>&1
+                    -Dsonar.login=sqp_7d0f319396eb123a80525d2aaf71b497e6e45734 >> %LOG_FILE% 2>&1
                 """
             }
         }
@@ -48,7 +48,7 @@ pipeline {
             steps {
                 echo "Démarrage de OWASP Dependency Check..."
                 dependencyCheck additionalArguments: '--scan target/ --format HTML --out target', odcInstallation: 'owasp'
-                bat 'dir target /s'
+                sh 'dir target /s'
             }
         }
 
@@ -67,13 +67,13 @@ pipeline {
 
         stage('Package') {
             steps {
-                bat 'mvn package'
+                sh 'mvn package'
             }
         }
 
         stage('Deploy') {
             steps {
-                bat 'java -jar target/spring-petclinic-2.1.0.BUILD-SNAPSHOT.jar'
+                sh 'java -jar target/spring-petclinic-2.1.0.BUILD-SNAPSHOT.jar'
             }
         }
     }
