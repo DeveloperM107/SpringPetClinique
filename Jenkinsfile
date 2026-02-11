@@ -30,7 +30,7 @@ pipeline{
             steps {
                 echo "Lancement de l'analyse SonarQube..."
                 bat """
-                    mvn sonar:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=squ_7f1b0d7d81d937b7f071e661bbf4f1981e6b02b9 >> %LOG_FILE% 2>&1
+                    mvn sonar:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=squ_11fa45440ad1afe61606a1c1a6eac09d139ac8a4 >> %LOG_FILE% 2>&1
                     if ERRORLEVEL 1 (
                         echo [✖] Erreur lors de l'analyse SonarQube >> %LOG_FILE%
                         exit /b 1
