@@ -8,7 +8,8 @@ pipeline {
     environment {
         LOG_FILE = "pipeline-report.txt"
         SONAR_PROJECT_KEY = "SonarTestProject"
-        SONAR_HOST_URL = "http://localhost:9003"
+        SONAR_HOST_URL = "http://host.docker.internal:9003"
+
     }
 
     stages {
