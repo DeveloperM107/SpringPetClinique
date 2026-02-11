@@ -32,18 +32,18 @@ pipeline {
                 sh 'mvn test'
             }
         }
-
-        stage('SonarQube Analysis') {
-            steps {
-                echo "Lancement de l'analyse SonarQube..."
-                sh """
-                    mvn sonar:sonar ^
-                    -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
-                    -Dsonar.host.url=%SONAR_HOST_URL% ^
-                    -Dsonar.login=sqp_7d0f319396eb123a80525d2aaf71b497e6e45734 >> %LOG_FILE% 2>&1
-                """
+            stage('SonarQube Analysis') {
+                steps {
+                    echo "Lancement analyse SonarQube..."
+                    sh """
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                    -Dsonar.host.url=${SONAR_HOST_URL} \
+                    -Dsonar.login=${SONAR_TOKEN}
+                    """
+                }
             }
-        }
+
 
         stage('OWASP Dependency Check') {
             steps {
