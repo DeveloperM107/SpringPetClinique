@@ -24,19 +24,19 @@ pipeline {
 
         stage('Build') {
             steps {
-                bat 'mvn clean compile'
+                sh 'mvn clean compile'
             }
         }
 
         stage('Test') {
             steps {
-                bat 'mvn test'
+                sh 'mvn test'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                bat """
+                sh """
                 mvn sonar:sonar ^
                 -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
                 -Dsonar.host.url=%SONAR_HOST_URL% ^
@@ -60,29 +60,29 @@ pipeline {
 
         stage('Package') {
             steps {
-                bat 'mvn package -DskipTests'
+                sh 'mvn package -DskipTests'
             }
         }
 
         // 🔥 DOCKER BUILD AUTOMATIQUE
         stage('Docker Build') {
             steps {
-                bat 'docker build -t petclinic:v1 .'
-                bat 'minikube image load petclinic:v1'
+                sh 'docker build -t petclinic:v1 .'
+                sh 'minikube image load petclinic:v1'
             }
         }
 
         // ☸️ HELM DEPLOY
         stage('Deploy Helm') {
             steps {
-                bat 'helm upgrade --install petclinic-release ./helm/petclinic'
+                sh 'helm upgrade --install petclinic-release ./helm/petclinic'
             }
         }
 
         // 🔵🟢 BLUE GREEN SWITCH
         stage('Blue-Green Switch') {
             steps {
-                bat '''
+                sh '''
                 kubectl patch svc petclinic-release -p "{\\"spec\\":{\\"selector\\":{\\"app\\":\\"petclinic\\",\\"version\\":\\"blue\\"}}}"
                 '''
             }
