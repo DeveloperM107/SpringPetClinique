@@ -5,20 +5,20 @@ pipeline {
         maven 'M3'
     }
 
-    environment {
-        LOG_FILE = "pipeline-report.txt"
-        SONAR_PROJECT_KEY = "SonarTestProject"
-        SONAR_HOST_URL = "http://host.docker.internal:9003"
-        SONAR_TOKEN = credentials('SONAR_TOKEN')
-    }
+ environment {
+    LOG_FILE = "pipeline-report.txt"
+    SONAR_PROJECT_KEY = "SonarTestProject"
+    SONAR_HOST_URL = "http://host.docker.internal:9003"
+    SONAR_TOKEN = credentials('SONAR_TOKEN')
+}
+
 
     stages {
 
         stage('Checkout') {
             steps {
                 git branch: 'master',
-                credentialsId: 'GITHUB_TOKEN',
-                url: 'https://github.com/sghaiershaima/SpringPetClinique.git'
+                url: 'https://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@github.com/sghaiershaima/SpringPetClinique.git'
             }
         }
 
