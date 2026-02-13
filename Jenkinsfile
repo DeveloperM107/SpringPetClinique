@@ -4,12 +4,12 @@ pipeline {
     tools {
         maven 'M3'
     }
-environment {
-    LOG_FILE = "pipeline-report.txt"
-    SONAR_PROJECT_KEY = "SonarTestProject"
-    SONAR_HOST_URL = "http://host.docker.internal:9003"
-    SONAR_TOKEN = credentials('SONAR_TOKEN')
-}
+    environment {
+        LOG_FILE = "pipeline-report.txt"
+        SONAR_PROJECT_KEY = "SonarTestProject"
+        SONAR_HOST_URL = "http://host.docker.internal:9003"
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
+    }
 
 
     stages {
@@ -77,12 +77,7 @@ environment {
                 sh 'mvn package'
             }
         }
-    }
-     stage('Package') {
-            steps {
-                sh 'mvn package -DskipTests'
-            }
-        }
+
 
         // 🔥 DOCKER BUILD AUTOMATIQUE
         stage('Docker Build') {
