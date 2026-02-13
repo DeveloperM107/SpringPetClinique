@@ -4,77 +4,87 @@ pipeline {
     tools {
         maven 'M3'
     }
-environment {
-    LOG_FILE = "pipeline-report.txt"
-    SONAR_PROJECT_KEY = "SonarTestProject"
-    SONAR_HOST_URL = "http://host.docker.internal:9003"
-    SONAR_TOKEN = credentials('SONAR_TOKEN')
-}
 
+    environment {
+        LOG_FILE = "pipeline-report.txt"
+        SONAR_PROJECT_KEY = "SonarTestProject"
+        SONAR_HOST_URL = "http://host.docker.internal:9003"
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
+    }
 
     stages {
 
         stage('Checkout') {
             steps {
                 git branch: 'master',
-                url: 'https://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@github.com/sghaiershaima/SpringPetClinique.git'
+                credentialsId: 'GITHUB_TOKEN',
+                url: 'https://github.com/sghaiershaima/SpringPetClinique.git'
             }
         }
 
         stage('Build') {
             steps {
-                sh 'mvn compile'
+                bat 'mvn clean compile'
             }
         }
 
         stage('Test') {
             steps {
-                sh 'mvn test'
+                bat 'mvn test'
             }
         }
-            stage('SonarQube Analysis') {
-                steps {
-                    echo "Lancement analyse SonarQube..."
-                    sh """
-                    mvn sonar:sonar \
-                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                    -Dsonar.host.url=${SONAR_HOST_URL} \
-                    -Dsonar.login=${SONAR_TOKEN}
-                    """
-                }
-            }
 
-
-       stage('OWASP Dependency Check') {
-    steps {
-        withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
-            dependencyCheck additionalArguments: """
-                --scan target/ \
-                --format HTML \
-                --out target \
-                --nvdApiKey ${NVD_API_KEY}
-            """, odcInstallation: 'owasp'
-        }
-        sh 'ls -R target'
-    }
-}
-
-        stage('Publish OWASP Report') {
+        stage('SonarQube Analysis') {
             steps {
-                publishHTML(target: [
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'target',
-                    reportFiles: 'dependency-check-report.html',
-                    reportName: 'OWASP Dependency Check Report'
-                ])
+                bat """
+                mvn sonar:sonar ^
+                -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
+                -Dsonar.host.url=%SONAR_HOST_URL% ^
+                -Dsonar.login=%SONAR_TOKEN%
+                """
+            }
+        }
+
+        stage('OWASP Dependency Check') {
+            steps {
+                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+                    dependencyCheck additionalArguments: """
+                        --scan target/ 
+                        --format HTML 
+                        --out target 
+                        --nvdApiKey ${NVD_API_KEY}
+                    """, odcInstallation: 'owasp'
+                }
             }
         }
 
         stage('Package') {
             steps {
-                sh 'mvn package'
+                bat 'mvn package -DskipTests'
+            }
+        }
+
+        // 🔥 DOCKER BUILD AUTOMATIQUE
+        stage('Docker Build') {
+            steps {
+                bat 'docker build -t petclinic:v1 .'
+                bat 'minikube image load petclinic:v1'
+            }
+        }
+
+        // ☸️ HELM DEPLOY
+        stage('Deploy Helm') {
+            steps {
+                bat 'helm upgrade --install petclinic-release ./helm/petclinic'
+            }
+        }
+
+        // 🔵🟢 BLUE GREEN SWITCH
+        stage('Blue-Green Switch') {
+            steps {
+                bat '''
+                kubectl patch svc petclinic-release -p "{\\"spec\\":{\\"selector\\":{\\"app\\":\\"petclinic\\",\\"version\\":\\"blue\\"}}}"
+                '''
             }
         }
     }
@@ -82,42 +92,20 @@ environment {
     post {
         success {
             emailext(
-                subject: "✅ Build réussi - Microservices",
-                body: """\
-Bonjour,
-
-Le pipeline Jenkins s’est terminé avec succès.
-
-Cordialement,
-Le serveur CI/CD
-""",
+                subject: "✅ Build réussi - Petclinic DevOps",
+                body: "Pipeline Jenkins terminé avec succès.",
                 to: 'sghaiershaima4@gmail.com',
-                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
                 attachLog: true
             )
         }
 
         failure {
             emailext(
-                subject: "❌ Build échoué - Microservices",
-                body: """\
-Bonjour,
-
-Le pipeline Jenkins a échoué.
-
-Merci de consulter le rapport joint.
-
-Cordialement,
-Le serveur CI/CD
-""",
+                subject: "❌ Build échoué - Petclinic DevOps",
+                body: "Pipeline Jenkins a échoué.",
                 to: 'sghaiershaima4@gmail.com',
-                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
                 attachLog: true
             )
-        }
-
-        always {
-            archiveArtifacts artifacts: "${env.LOG_FILE}, target/dependency-check-report.html", allowEmptyArchive: true
         }
     }
 }
