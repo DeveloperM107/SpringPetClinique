@@ -4,8 +4,7 @@ pipeline {
     tools {
         maven 'M3'
     }
-
- environment {
+environment {
     LOG_FILE = "pipeline-report.txt"
     SONAR_PROJECT_KEY = "SonarTestProject"
     SONAR_HOST_URL = "http://host.docker.internal:9003"
@@ -24,7 +23,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'mvn clean compile'
+                sh 'mvn compile'
             }
         }
 
@@ -33,32 +32,53 @@ pipeline {
                 sh 'mvn test'
             }
         }
-
-        stage('SonarQube Analysis') {
-            steps {
-                sh """
-                mvn sonar:sonar ^
-                -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
-                -Dsonar.host.url=%SONAR_HOST_URL% ^
-                -Dsonar.login=%SONAR_TOKEN%
-                """
-            }
-        }
-
-        stage('OWASP Dependency Check') {
-            steps {
-                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
-                    dependencyCheck additionalArguments: """
-                        --scan target/ 
-                        --format HTML 
-                        --out target 
-                        --nvdApiKey ${NVD_API_KEY}
-                    """, odcInstallation: 'owasp'
+            stage('SonarQube Analysis') {
+                steps {
+                    echo "Lancement analyse SonarQube..."
+                    sh """
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                    -Dsonar.host.url=${SONAR_HOST_URL} \
+                    -Dsonar.login=${SONAR_TOKEN}
+                    """
                 }
+            }
+
+
+       stage('OWASP Dependency Check') {
+    steps {
+        withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+            dependencyCheck additionalArguments: """
+                --scan target/ \
+                --format HTML \
+                --out target \
+                --nvdApiKey ${NVD_API_KEY}
+            """, odcInstallation: 'owasp'
+        }
+        sh 'ls -R target'
+    }
+}
+
+        stage('Publish OWASP Report') {
+            steps {
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'target',
+                    reportFiles: 'dependency-check-report.html',
+                    reportName: 'OWASP Dependency Check Report'
+                ])
             }
         }
 
         stage('Package') {
+            steps {
+                sh 'mvn package'
+            }
+        }
+    }
+     stage('Package') {
             steps {
                 sh 'mvn package -DskipTests'
             }
@@ -89,23 +109,46 @@ pipeline {
         }
     }
 
+
     post {
         success {
             emailext(
-                subject: "✅ Build réussi - Petclinic DevOps",
-                body: "Pipeline Jenkins terminé avec succès.",
+                subject: "✅ Build réussi - Microservices",
+                body: """\
+Bonjour,
+
+Le pipeline Jenkins s’est terminé avec succès.
+
+Cordialement,
+Le serveur CI/CD
+""",
                 to: 'sghaiershaima4@gmail.com',
+                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
                 attachLog: true
             )
         }
 
         failure {
             emailext(
-                subject: "❌ Build échoué - Petclinic DevOps",
-                body: "Pipeline Jenkins a échoué.",
+                subject: "❌ Build échoué - Microservices",
+                body: """\
+Bonjour,
+
+Le pipeline Jenkins a échoué.
+
+Merci de consulter le rapport joint.
+
+Cordialement,
+Le serveur CI/CD
+""",
                 to: 'sghaiershaima4@gmail.com',
+                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
                 attachLog: true
             )
+        }
+
+        always {
+            archiveArtifacts artifacts: "${env.LOG_FILE}, target/dependency-check-report.html", allowEmptyArchive: true
         }
     }
 }
