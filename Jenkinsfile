@@ -13,9 +13,6 @@ pipeline {
 
     stages {
 
-        // ==========================
-        // CHECKOUT
-        // ==========================
         stage('Checkout') {
             steps {
                 git branch: 'master',
@@ -23,27 +20,18 @@ pipeline {
             }
         }
 
-        // ==========================
-        // BUILD
-        // ==========================
         stage('Build') {
             steps {
                 sh 'mvn clean package -DskipTests'
             }
         }
 
-        // ==========================
-        // TESTS
-        // ==========================
         stage('Tests') {
             steps {
                 sh 'mvn test'
             }
         }
 
-        // ==========================
-        // DOCKER BUILD
-        // ==========================
         stage('Docker Build') {
             steps {
                 sh '''
@@ -53,46 +41,35 @@ pipeline {
             }
         }
 
-        // ==========================
-        // LOAD IMAGE INTO MINIKUBE
-        // ==========================
-        stage('Load Image') {
+        // ✅ CORRECTION ICI
+        stage('Load Image into Minikube') {
             steps {
                 sh '''
-                echo "Loading image into Minikube Docker..."
-                docker save ${IMAGE_NAME} | (eval $(minikube docker-env) && docker load)
+                echo "Loading image into Minikube..."
+                minikube image load ${IMAGE_NAME}
                 '''
             }
         }
 
-        // ==========================
-        // TEST CLUSTER
-        // ==========================
         stage('Test Kubernetes') {
             steps {
                 sh '''
                 echo "Checking Kubernetes cluster..."
-                kubectl get nodes
+                minikube kubectl -- get nodes
                 '''
             }
         }
 
-        // ==========================
-        // DEPLOY K8S
-        // ==========================
         stage('Deploy Kubernetes') {
             steps {
                 sh '''
                 echo "Applying Kubernetes manifests..."
-                kubectl apply -f k8s/deployment.yaml
-                kubectl apply -f k8s/service.yaml
+                minikube kubectl -- apply -f k8s/deployment.yaml
+                minikube kubectl -- apply -f k8s/service.yaml
                 '''
             }
         }
 
-        // ==========================
-        // HELM DEPLOY
-        // ==========================
         stage('Helm Deploy') {
             steps {
                 sh '''
