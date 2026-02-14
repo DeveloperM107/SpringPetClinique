@@ -50,8 +50,16 @@ pipeline {
                 '''
             }
         }
+        stage('Fix Minikube Context') {
+            steps {
+                sh '''
+                echo "Fixing Minikube context..."
+                minikube update-context
+                '''
+            }
+        }
 
-        stage('Test Kubernetes') {
+               stage('Test Kubernetes') {
             steps {
                 sh '''
                 echo "Checking Kubernetes cluster..."
@@ -59,6 +67,7 @@ pipeline {
                 '''
             }
         }
+
 
         stage('Deploy Kubernetes') {
             steps {
