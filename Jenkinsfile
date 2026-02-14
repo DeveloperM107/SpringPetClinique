@@ -49,20 +49,30 @@ pipeline {
                 sh '''
                 echo "Building Docker Image..."
                 docker build -t ${IMAGE_NAME} .
-                echo "Loading image into Minikube..."
-                minikube image load ${IMAGE_NAME}
                 '''
             }
         }
 
         // ==========================
-        // TEST CLUSTER (🔥 IMPORTANT)
+        // LOAD IMAGE INTO MINIKUBE
+        // ==========================
+        stage('Load Image') {
+            steps {
+                sh '''
+                echo "Loading image into Minikube Docker..."
+                docker save ${IMAGE_NAME} | (eval $(minikube docker-env) && docker load)
+                '''
+            }
+        }
+
+        // ==========================
+        // TEST CLUSTER
         // ==========================
         stage('Test Kubernetes') {
             steps {
                 sh '''
                 echo "Checking Kubernetes cluster..."
-                minikube kubectl -- get nodes
+                kubectl get nodes
                 '''
             }
         }
@@ -74,8 +84,8 @@ pipeline {
             steps {
                 sh '''
                 echo "Applying Kubernetes manifests..."
-                minikube kubectl -- apply -f k8s/deployment.yaml
-                minikube kubectl -- apply -f k8s/service.yaml
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
                 '''
             }
         }
