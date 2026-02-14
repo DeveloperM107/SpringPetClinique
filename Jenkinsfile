@@ -13,42 +13,82 @@ pipeline {
 
     stages {
 
+        // ==========================
+        // CHECKOUT
+        // ==========================
         stage('Checkout') {
             steps {
                 git branch: 'master',
-                url: 'https://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@github.com/sghaiershaima/SpringPetClinique.git'
+                url: 'https://github.com/sghaiershaima/SpringPetClinique.git'
             }
         }
 
-
+        // ==========================
+        // BUILD
+        // ==========================
         stage('Build') {
             steps {
                 sh 'mvn clean package -DskipTests'
             }
         }
 
+        // ==========================
+        // TESTS
+        // ==========================
         stage('Tests') {
             steps {
                 sh 'mvn test'
             }
         }
 
+        // ==========================
+        // DOCKER BUILD
+        // ==========================
         stage('Docker Build') {
             steps {
-                sh 'docker build -t ${IMAGE_NAME} .'
+                sh '''
+                echo "Building Docker Image..."
+                docker build -t ${IMAGE_NAME} .
+                echo "Loading image into Minikube..."
+                minikube image load ${IMAGE_NAME}
+                '''
             }
         }
 
+        // ==========================
+        // TEST CLUSTER (🔥 IMPORTANT)
+        // ==========================
+        stage('Test Kubernetes') {
+            steps {
+                sh '''
+                echo "Checking Kubernetes cluster..."
+                minikube kubectl -- get nodes
+                '''
+            }
+        }
+
+        // ==========================
+        // DEPLOY K8S
+        // ==========================
         stage('Deploy Kubernetes') {
             steps {
-                sh 'kubectl apply -f k8s/deployment.yaml'
-                sh 'kubectl apply -f k8s/service.yaml'
+                sh '''
+                echo "Applying Kubernetes manifests..."
+                minikube kubectl -- apply -f k8s/deployment.yaml
+                minikube kubectl -- apply -f k8s/service.yaml
+                '''
             }
         }
 
+        // ==========================
+        // HELM DEPLOY
+        // ==========================
         stage('Helm Deploy') {
             steps {
-                sh 'helm upgrade --install ${RELEASE_NAME} ./helm/petclinic'
+                sh '''
+                echo "Deploying with Helm..."
+                helm upgrade --install ${RELEASE_NAME} ./helm/petclinic
+                '''
             }
         }
     }
