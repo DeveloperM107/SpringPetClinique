@@ -58,14 +58,17 @@ pipeline {
                 '''
             }
         }
-    stage('Test Kubernetes') {
-        steps {
-            sh '''
-            echo "Checking Kubernetes cluster..."
-            docker exec minikube kubectl get nodes
-            '''
-        }
+  stage('Test Kubernetes') {
+    steps {
+        sh '''
+        echo "Checking Kubernetes cluster..."
+
+        export KUBECONFIG=/var/jenkins_home/.kube/config
+
+        minikube kubectl -- get nodes
+        '''
     }
+}
 
 
 
