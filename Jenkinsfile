@@ -9,10 +9,14 @@ pipeline {
     environment {
         IMAGE_NAME = "petclinic:v1"
         RELEASE_NAME = "petclinic-release"
+        KUBECONFIG = "/root/.kube/config"
     }
 
     stages {
 
+        // ==========================
+        // CHECKOUT
+        // ==========================
         stage('Checkout') {
             steps {
                 git branch: 'master',
@@ -20,18 +24,27 @@ pipeline {
             }
         }
 
+        // ==========================
+        // BUILD
+        // ==========================
         stage('Build') {
             steps {
                 sh 'mvn clean package -DskipTests'
             }
         }
 
+        // ==========================
+        // TESTS
+        // ==========================
         stage('Tests') {
             steps {
                 sh 'mvn test'
             }
         }
 
+        // ==========================
+        // DOCKER BUILD
+        // ==========================
         stage('Docker Build') {
             steps {
                 sh '''
@@ -41,7 +54,9 @@ pipeline {
             }
         }
 
-        // ✅ CORRECTION ICI
+        // ==========================
+        // LOAD IMAGE INTO MINIKUBE
+        // ==========================
         stage('Load Image into Minikube') {
             steps {
                 sh '''
@@ -50,49 +65,35 @@ pipeline {
                 '''
             }
         }
-        stage('Fix Minikube Context') {
+
+        // ==========================
+        // TEST CLUSTER
+        // ==========================
+        stage('Test Kubernetes') {
             steps {
                 sh '''
-                echo "Fixing Minikube context..."
-                minikube update-context
+                echo "Checking Kubernetes cluster..."
+                kubectl get nodes
                 '''
             }
         }
-        stage('DEBUG KUBECONFIG') {
-    steps {
-        sh '''
-        echo "Listing kube folder"
-        ls -la /root/.kube || true
-        ls -la /var/jenkins_home/.kube || true
-        '''
-    }
-}
 
-stage('Test Kubernetes') {
-    steps {
-        sh '''
-        echo "Checking Kubernetes cluster..."
-
-        export KUBECONFIG=/root/.kube/config
-
-        kubectl get nodes
-        '''
-    }
-}
-
-
-
-
+        // ==========================
+        // DEPLOY K8S
+        // ==========================
         stage('Deploy Kubernetes') {
             steps {
                 sh '''
                 echo "Applying Kubernetes manifests..."
-                minikube kubectl -- apply -f k8s/deployment.yaml
-                minikube kubectl -- apply -f k8s/service.yaml
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
                 '''
             }
         }
 
+        // ==========================
+        // HELM DEPLOY
+        // ==========================
         stage('Helm Deploy') {
             steps {
                 sh '''
