@@ -58,15 +58,15 @@ pipeline {
                 '''
             }
         }
-
-               stage('Test Kubernetes') {
-            steps {
-                sh '''
-                echo "Checking Kubernetes cluster..."
-                minikube kubectl -- get nodes
-                '''
-            }
+    stage('Test Kubernetes') {
+        steps {
+            sh '''
+            echo "Checking Kubernetes cluster..."
+            docker exec minikube kubectl get nodes
+            '''
         }
+    }
+
 
 
         stage('Deploy Kubernetes') {
