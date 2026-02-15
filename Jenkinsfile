@@ -58,17 +58,28 @@ pipeline {
                 '''
             }
         }
-  stage('Test Kubernetes') {
+        stage('DEBUG KUBECONFIG') {
+    steps {
+        sh '''
+        echo "Listing kube folder"
+        ls -la /root/.kube || true
+        ls -la /var/jenkins_home/.kube || true
+        '''
+    }
+}
+
+stage('Test Kubernetes') {
     steps {
         sh '''
         echo "Checking Kubernetes cluster..."
 
-        export KUBECONFIG=/var/jenkins_home/.kube/config
+        export KUBECONFIG=/root/.kube/config
 
-        minikube kubectl -- get nodes
+        kubectl get nodes
         '''
     }
 }
+
 
 
 
