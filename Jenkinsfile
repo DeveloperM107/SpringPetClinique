@@ -69,20 +69,26 @@ pipeline {
         // ==========================
         // TEST CLUSTER
         // ==========================
-        stage('Test Kubernetes') {
+        stage('Test network') {
+    steps {
+        sh 'ping -c 2 host.docker.internal || true'
+    }
+}
+
+   stage('Test Kubernetes') {
     steps {
         sh '''
-        echo "Fix kubeconfig for Jenkins network..."
+        echo "Fix kubeconfig for Docker network..."
 
         kubectl config set-cluster minikube \
-        --server=https://minikube:8443 \
+        --server=https://host.docker.internal:56806 \
         --insecure-skip-tls-verify=true
 
-        echo "Checking Kubernetes cluster..."
         kubectl get nodes
         '''
     }
 }
+
 
 
         // ==========================
