@@ -70,13 +70,20 @@ pipeline {
         // TEST CLUSTER
         // ==========================
         stage('Test Kubernetes') {
-            steps {
-                sh '''
-                echo "Checking Kubernetes cluster..."
-                kubectl get nodes
-                '''
-            }
-        }
+    steps {
+        sh '''
+        echo "Fix kubeconfig for Jenkins network..."
+
+        kubectl config set-cluster minikube \
+        --server=https://minikube:8443 \
+        --insecure-skip-tls-verify=true
+
+        echo "Checking Kubernetes cluster..."
+        kubectl get nodes
+        '''
+    }
+}
+
 
         // ==========================
         // DEPLOY K8S
