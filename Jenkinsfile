@@ -119,7 +119,7 @@ pipeline {
 
     post {
         success {
-            echo "🚀 Full DevOps Pipeline Completed"
+            echo "🚀 Full DevOps Pipeline Completed Bravo"
         }
         failure {
             echo "❌ Pipeline Failed"
