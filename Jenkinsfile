@@ -76,46 +76,5 @@ pipeline {
 
     }
 
-    post {
-
-        success {
-            emailext(
-                subject: "✅ Build réussi - Microservices",
-                body: """\
-Bonjour,
-
-Le pipeline Jenkins s’est terminé avec succès.
-
-Cordialement,
-Le serveur CI/CD
-""",
-                to: 'sghaiershaima4@gmail.com',
-                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
-                attachLog: true
-            )
-        }
-
-        failure {
-            emailext(
-                subject: "❌ Build échoué - Microservices",
-                body: """\
-Bonjour,
-
-Le pipeline Jenkins a échoué.
-
-Merci de consulter le rapport joint.
-
-Cordialement,
-Le serveur CI/CD
-""",
-                to: 'sghaiershaima4@gmail.com',
-                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
-                attachLog: true
-            )
-        }
-
-        always {
-            archiveArtifacts artifacts: "${env.LOG_FILE}, target/dependency-check-report.html", allowEmptyArchive: true
-        }
-    }
+   
 }
