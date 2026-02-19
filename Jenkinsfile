@@ -8,9 +8,6 @@ pipeline {
 
     environment {
         LOG_FILE = "pipeline-report.txt"
-        SONAR_PROJECT_KEY = "petCliniqueProj"
-        SONAR_HOST_URL = "http://host.docker.internal:9003"
-        SONAR_TOKEN = credentials('SONAR_TOKEN')
     }
 
     stages {
@@ -34,17 +31,6 @@ pipeline {
             }
         }
 
-        stage('SonarQube Analysis') {
-            steps {
-                echo "Lancement analyse SonarQube..."
-                sh """
-                mvn sonar:sonar \
-                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                -Dsonar.host.url=${SONAR_HOST_URL} \
-                -Dsonar.login=${SONAR_TOKEN}
-                """
-            }
-        }
 
         stage('OWASP Dependency Check') {
             steps {
