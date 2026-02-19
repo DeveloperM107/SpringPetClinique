@@ -4,13 +4,13 @@ pipeline {
 
     tools {
         maven 'M3'
+        jdk 'jdk17'
     }
 
     environment {
         LOG_FILE = "pipeline-report.txt"
         SONAR_PROJECT_KEY = "petCliniqueProj"
         SONAR_HOST_URL = "http://host.docker.internal:9003"
-        SONAR_TOKEN = credentials('SONAR_TOKEN')
     }
 
     stages {
@@ -24,7 +24,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'mvn compile'
+                sh 'mvn clean compile'
             }
         }
 
@@ -36,29 +36,27 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                echo "Lancement analyse SonarQube..."
-                sh """
-                mvn sonar:sonar \
-                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                -Dsonar.host.url=${SONAR_HOST_URL} \
-                -Dsonar.login=${SONAR_TOKEN}
-                """
+                withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        echo "Lancement analyse SonarQube..."
+                        mvn sonar:sonar \
+                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_TOKEN
+                    '''
+                }
             }
         }
 
-  stage('OWASP Dependency Check') {
-    steps {
-        withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
-            dependencyCheck additionalArguments: """
-                --scan target/ \
-                --format HTML \
-                --out target \
-                --nvdApiKey ${NVD_API_KEY}
-            """, odcInstallation: 'owasp'
+        stage('OWASP Dependency Check') {
+            steps {
+                dependencyCheck additionalArguments: '''
+                    --scan .
+                    --format HTML
+                    --out target
+                ''', odcInstallation: 'owasp'
+            }
         }
-        sh 'ls -R target'
-    }
-}
 
         stage('Publish OWASP Report') {
             steps {
@@ -72,9 +70,5 @@ pipeline {
                 ])
             }
         }
-
-
-
-
     }
 }
