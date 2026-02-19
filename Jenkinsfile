@@ -7,122 +7,115 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = "petclinic:v1"
-        RELEASE_NAME = "petclinic-release"
-        KUBECONFIG = "/root/.kube/config"
+        LOG_FILE = "pipeline-report.txt"
+        SONAR_PROJECT_KEY = "petCliniqueProj"
+        SONAR_HOST_URL = "http://host.docker.internal:9003"
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
     }
 
     stages {
 
-        // ==========================
-        // CHECKOUT
-        // ==========================
         stage('Checkout') {
             steps {
                 git branch: 'master',
-                url: 'https://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@github.com/sghaiershaima/SpringPetClinique.git'
+                    url: 'https://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@github.com/DeveloperM107/SpringPetClinique.git'
             }
         }
 
-        // ==========================
-        // BUILD
-        // ==========================
         stage('Build') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh 'mvn compile'
             }
         }
 
-        // ==========================
-        // TESTS
-        // ==========================
-        stage('Tests') {
+        stage('Test') {
             steps {
                 sh 'mvn test'
             }
         }
 
-        // ==========================
-        // DOCKER BUILD
-        // ==========================
-        stage('Docker Build') {
+        stage('SonarQube Analysis') {
             steps {
-                sh '''
-                echo "Building Docker Image..."
-                docker build -t ${IMAGE_NAME} .
-                '''
+                echo "Lancement analyse SonarQube..."
+                sh """
+                mvn sonar:sonar \
+                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                -Dsonar.host.url=${SONAR_HOST_URL} \
+                -Dsonar.login=${SONAR_TOKEN}
+                """
             }
         }
 
-        // ==========================
-        // LOAD IMAGE INTO MINIKUBE
-        // ==========================
-        stage('Load Image into Minikube') {
+        stage('OWASP Dependency Check') {
             steps {
-                sh '''
-                echo "Loading image into Minikube..."
-                minikube image load ${IMAGE_NAME}
-                '''
+                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+                    dependencyCheck additionalArguments: """
+                        --scan target/ \
+                        --format HTML \
+                        --out target \
+                        --nvdApiKey ${NVD_API_KEY}
+                    """,
+                    odcInstallation: 'owasp'
+                }
+                sh 'ls -R target'
             }
         }
 
-        // ==========================
-        // TEST CLUSTER
-        // ==========================
-        stage('Test network') {
-    steps {
-        sh 'ping -c 2 host.docker.internal || true'
-    }
-}
-
-   stage('Test Kubernetes') {
-    steps {
-        sh '''
-        echo "Fix kubeconfig for Docker network..."
-
-        kubectl config set-cluster minikube \
-        --server=https://host.docker.internal:56806 \
-        --insecure-skip-tls-verify=true
-
-        kubectl get nodes
-        '''
-    }
-}
-
-
-
-        // ==========================
-        // DEPLOY K8S
-        // ==========================
-        stage('Deploy Kubernetes') {
+        stage('Publish OWASP Report') {
             steps {
-                sh '''
-                echo "Applying Kubernetes manifests..."
-                kubectl apply -f k8s/deployment.yaml
-                kubectl apply -f k8s/service.yaml
-                '''
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'target',
+                    reportFiles: 'dependency-check-report.html',
+                    reportName: 'OWASP Dependency Check Report'
+                ])
             }
         }
 
-        // ==========================
-        // HELM DEPLOY
-        // ==========================
-        stage('Helm Deploy') {
-            steps {
-                sh '''
-                echo "Deploying with Helm..."
-                helm upgrade --install ${RELEASE_NAME} ./helm/petclinic
-                '''
-            }
-        }
     }
 
     post {
+
         success {
-            echo "🚀 Full DevOps Pipeline Completed Bravo"
+            emailext(
+                subject: "✅ Build réussi - Microservices",
+                body: """\
+Bonjour,
+
+Le pipeline Jenkins s’est terminé avec succès.
+
+Cordialement,
+Le serveur CI/CD
+""",
+                to: 'sghaiershaima4@gmail.com',
+                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
+                attachLog: true
+            )
         }
+
         failure {
-            echo "❌ Pipeline Failed"
+            emailext(
+                subject: "❌ Build échoué - Microservices",
+                body: """\
+Bonjour,
+
+Le pipeline Jenkins a échoué.
+
+Merci de consulter le rapport joint.
+
+Cordialement,
+Le serveur CI/CD
+""",
+                to: 'sghaiershaima4@gmail.com',
+                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
+                attachLog: true
+            )
+        }
+
+        always {
+            archiveArtifacts artifacts: "${env.LOG_FILE}, target/dependency-check-report.html", allowEmptyArchive: true
         }
     }
 }
