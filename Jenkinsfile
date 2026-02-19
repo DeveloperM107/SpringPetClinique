@@ -46,26 +46,19 @@ pipeline {
             }
         }
 
-       stage('OWASP Dependency Check') {
+  stage('OWASP Dependency Check') {
     steps {
-        script {
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-
-                dependencyCheck additionalArguments: '''
-                    --project petclinic
-                    --scan .
-                    --format XML
-                    --out target
-                    --noupdate
-                ''',
-                odcInstallation: 'owasp'
-
-            }
+        withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+            dependencyCheck additionalArguments: """
+                --scan target/ \
+                --format HTML \
+                --out target \
+                --nvdApiKey ${NVD_API_KEY}
+            """, odcInstallation: 'owasp'
         }
+        sh 'ls -R target'
     }
 }
-
-
 
         stage('Publish OWASP Report') {
             steps {
@@ -80,48 +73,8 @@ pipeline {
             }
         }
 
-    }
 
-    post {
 
-        success {
-            emailext(
-                subject: "✅ Build réussi - Microservices",
-                body: """\
-Bonjour,
 
-Le pipeline Jenkins s’est terminé avec succès.
-
-Cordialement,
-Le serveur CI/CD
-""",
-                to: 'sghaiershaima4@gmail.com',
-                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
-                attachLog: true
-            )
-        }
-
-        failure {
-            emailext(
-                subject: "❌ Build échoué - Microservices",
-                body: """\
-Bonjour,
-
-Le pipeline Jenkins a échoué.
-
-Merci de consulter le rapport joint.
-
-Cordialement,
-Le serveur CI/CD
-""",
-                to: 'sghaiershaima4@gmail.com',
-                attachmentsPattern: "${env.LOG_FILE}, target/dependency-check-report.html",
-                attachLog: true
-            )
-        }
-
-        always {
-            archiveArtifacts artifacts: "${env.LOG_FILE}, target/dependency-check-report.html", allowEmptyArchive: true
-        }
     }
 }
