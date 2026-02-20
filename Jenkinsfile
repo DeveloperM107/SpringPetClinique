@@ -4,13 +4,18 @@ pipeline {
 
     tools {
         maven 'M3'
-        
+    }
+    parameters {
+        choice(name: 'SCAN_TYPE', choices: ['Baseline','APIS','Full'], description: 'Type de scan ZAP')
+        string(name: 'TARGET', defaultValue: 'http://host.docker.internal:8080', description: 'URL cible')
+        booleanParam(name: 'GENERATE_REPORT', defaultValue: true, description: 'Generate ZAP report')
     }
 
     environment {
         LOG_FILE = "pipeline-report.txt"
         SONAR_PROJECT_KEY = "petCliniqueProj"
         SONAR_HOST_URL = "http://host.docker.internal:9003"
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
     }
 
     stages {
@@ -24,7 +29,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'mvn clean compile'
+                sh 'mvn compile'
             }
         }
 
@@ -36,39 +41,46 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
-                    sh '''
-                        echo "Lancement analyse SonarQube..."
-                        mvn sonar:sonar \
-                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN
-                    '''
-                }
+                echo "Lancement analyse SonarQube..."
+                sh """
+                mvn sonar:sonar \
+                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                -Dsonar.host.url=${SONAR_HOST_URL} \
+                -Dsonar.login=${SONAR_TOKEN}
+                """
             }
         }
 
-        stage('OWASP Dependency Check') {
-            steps {
-                dependencyCheck additionalArguments: '''
-                    --scan .
-                    --format HTML
-                    --out target
-                ''', odcInstallation: 'owasp'
-            }
-        }
+     stage('OWASP ZAP') {
+ steps {
+  sh '''
+ docker run --rm \
+  --network infra_devops-net \
+  -u root \
+  -v "$PWD:/zap/wrk" \
+  ghcr.io/zaproxy/zaproxy:stable \
+  zap-baseline.py \
+  -t http://jenkins:8080 \
+  -r zap-report.html \
+  -J zap-report.json \
+  -I \
+  --autooff
+  '''
+ }
+}
+       stage('Publish ZAP Report') {
+ steps {
+  publishHTML(target: [
+    allowMissing: true,
+    alwaysLinkToLastBuild: true,
+    keepAll: true,
+    reportDir: '.',
+    reportFiles: 'zap-report.html',
+    reportName: 'OWASP ZAP Report'
+  ])
+ }
+}
 
-        stage('Publish OWASP Report') {
-            steps {
-                publishHTML(target: [
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'target',
-                    reportFiles: 'dependency-check-report.html',
-                    reportName: 'OWASP Dependency Check Report'
-                ])
-            }
-        }
     }
+
 }
