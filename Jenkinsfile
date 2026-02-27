@@ -157,12 +157,12 @@ pipeline {
       }
     }
 
-    // ✋ MANUAL APPROVAL GATE
+   
     stage('Manual Approval') {
       when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
       steps {
         timeout(time: 30, unit: 'MINUTES') {
-          input message: '🚀 Deploy to Production?', ok: 'Approve & Deploy'
+          input message: ' Deploy to Production?', ok: 'Approve & Deploy'
         }
       }
     }
@@ -174,7 +174,7 @@ pipeline {
           mkdir -p /var/jenkins_home/.kube
 
           if [ ! -f /root/.kube/config ]; then
-            echo "❌ /root/.kube/config not found. Mount kubeconfig into the Jenkins container."
+            echo " /root/.kube/config not found. Mount kubeconfig into the Jenkins container."
             exit 1
           fi
 
