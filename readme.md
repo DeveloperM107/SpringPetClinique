@@ -1,253 +1,153 @@
-```markdown
-# 🚀 Enterprise DevSecOps Platform — Spring PetClinic
+_________________________________________________________________________________________________________________________________
+================================================================                
+          DEVSECOPS PLATFORM – SPRING PETCLINIC 
+================================================================
+
+1. PROJECT OVERVIEW
+----------------------------------------------------------------
+This project is a full-scale implementation of a DevSecOps 
+pipeline for the Spring PetClinic application. My goal was to 
+move beyond simple automation and build a "Security-by-Design" 
+ecosystem. 
+
+The platform handles the entire lifecycle—from the moment code 
+is pushed to GitHub, through security gates and automated 
+testing, ending with a high-availability deployment on 
+Kubernetes. 
+
+Key Highlights:
+- Fully automated CI/CD via Jenkins.
+- Security baked in (SAST with SonarQube, DAST with OWASP ZAP).
+- Zero-downtime updates using a Blue-Green strategy.
+- Full observability with a Prometheus/Grafana stack.
+
+
+2. THE ARCHITECTURE (Infrastructure-as-Code)
+----------------------------------------------------------------
+I built this platform to be 100% reproducible. Everything is 
+defined as code, so you can spin up the entire environment 
+without manual clicking.
+
+- Tooling Layer: Jenkins and SonarQube run in Docker containers 
+  via Docker Compose. This keeps the setup portable.
+- Cluster Layer: The application lives in a Kubernetes cluster 
+  (Minikube). I used Helm to package the app, making it easy 
+  to manage different deployment versions (Blue vs. Green).
+
+
+3. THE PIPELINE WORKFLOW
+----------------------------------------------------------------
+The Jenkinsfile is the brain of the project. It supports 
+different modes (CI_CD, CI_ONLY, CD_ONLY) depending on 
+the developer's needs.
+
+Continuous Integration (The "Shield"):
+- It starts with a Maven build and unit tests.
+- Then, SonarQube scans the code for security holes and bugs.
+- Finally, it builds a Docker image and pushes it directly 
+  into the Minikube environment.
+
+Continuous Deployment (The "Delivery"):
+- The pipeline checks if the Kubernetes namespace exists.
+- It deploys both the Blue and Green versions simultaneously.
+- Before switching traffic, it waits for the pods to be "Ready."
+- If everything looks good, it patches the K8s service to 
+  point to the new version.
+
+
+4. ZERO-DOWNTIME & SAFETY
+----------------------------------------------------------------
+I chose a Blue-Green deployment strategy to ensure the app 
+never goes offline during an update. 
+- Reliability: We run at least 2 replicas for each version.
+- Instant Switch: Traffic is rerouted instantly via a 
+  Service Selector change.
+- Rollback: If the "Green" version fails its health checks, 
+  the pipeline automatically keeps the "Blue" version live 
+  and stops the deployment.
+
+
+5. SECURITY & MONITORING
+----------------------------------------------------------------
+- Security: We don't just scan the code (SAST); we also scan 
+  the running app using OWASP ZAP (DAST). The reports are 
+  saved as artifacts in the Jenkins build history.
+- Monitoring: I integrated Prometheus to scrape metrics and 
+  Grafana to visualize them. This gives us a real-time view 
+  of CPU, memory, and pod health.
+
+
+6. HOW TO RUN THIS LOCALLY
+----------------------------------------------------------------
+1. Clone the repo:
+   git clone https://github.com/DeveloperM107/SpringPetClinique.git
+
+2. Start the DevOps tools:
+   docker compose up -d --build
+
+3. Fire up the cluster:
+   minikube start
+
+4. Trigger: Push a change to GitHub or run the job in Jenkins.
+
+
+7. APPLICATION ACCESS (Local FQDN Setup)
+----------------------------------------------------------------
+I've set it up so you can access the app via a clean URL 
+instead of an IP address.
+
+A) Update your Hosts file (Windows):
+   Open C:\Windows\System32\drivers\etc\hosts as Admin.
+   Add this line: 127.0.0.1   petclinic.moetez.local
 
-## 🧭 Overview
+B) Start the Tunnel:
+   Run: kubectl port-forward svc/petclinic-release 8083:80
 
-This project is a **full Enterprise DevSecOps Platform** built around the Spring PetClinic application.  
-It goes far beyond a traditional CI/CD pipeline by integrating **Infrastructure as Code, Security Automation, Blue-Green Deployment, and Observability** into a single automated ecosystem.
+C) Open your browser:
+   Link: http://petclinic.moetez.local:8083
 
-The goal of this platform is to simulate a **real production-grade DevSecOps architecture** where application delivery is secure, automated, and continuously monitored.
 
-Instead of focusing only on application deployment, this project demonstrates how modern organizations build **secure, scalable, and zero-downtime delivery pipelines**.
+8. COMPLIANCE & REQS MET
+----------------------------------------------------------------
+[X] IaC Approach (No manual setup)
+[X] Automated CI (Webhooks)
+[X] HA Scaling (Replicas >= 2)
+[X] Zero Downtime (Blue-Green)
+[X] Security (SAST + DAST)
+[X] Monitoring (Self-hosted stack)
+[X] Automated Rollbacks
 
----
+9. HTTPS Configuration (TLS)
+================================================================
 
-## 🏗️ Enterprise Architecture
+1. Generate Keystore
+Run in project root:
 
-```
+Bash
+keytool -genkeypair -alias petclinic -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.p12 -validity 365 -storepass password -dname "CN=petclinic.moetez.local, OU=DevSecOps, O=DevSecOps, L=Berlin, S=Berlin, C=DE"
+Move keystore.p12 to: src/main/resources/
 
-GitHub Repository
-↓
-Jenkins CI/CD Pipeline
-↓
-Code Quality & Security (SonarQube + OWASP ZAP)
-↓
-Docker Image Build & Versioning
-↓
-Kubernetes Deployment (Helm)
-↓
-Blue-Green Traffic Switching
-↓
-Monitoring & Observability (Prometheus + Grafana)
+2. Spring Boot Configuration
+File: src/main/resources/application.properties
 
-```
+Properties
+server.port=8443
+server.ssl.enabled=true
+server.ssl.key-store=classpath:keystore.p12
+server.ssl.key-store-password=password
+server.ssl.key-store-type=PKCS12
+server.ssl.key-alias=petclinic
+3. CI CD Pipeline
 
-This architecture reflects real-world DevSecOps workflows used in modern cloud-native environments.
+Build: JAR and Docker image
 
----
+Deployment: Helm Blue/Green
 
-## 💼 Key Value Proposition
+Traffic: Switch to Green deployment
 
-✔ Enterprise-grade DevSecOps automation  
-✔ Infrastructure fully described as code  
-✔ Integrated security scanning pipeline  
-✔ Zero-downtime Blue-Green deployment strategy  
-✔ Real monitoring stack with alerts and metrics  
-✔ Fully reproducible local DevOps environment
+4. Application Access
+Local port forwarding:
 
-This project demonstrates not only technical implementation but also **DevOps architecture design thinking**.
-
----
-
-## 🧱 Infrastructure as Code (IaC)
-
-The entire platform is defined through code:
-
-- Docker Compose for DevOps infrastructure
-- Kubernetes manifests for application orchestration
-- Helm charts for versioned deployments
-
-Core services deployed automatically:
-
-- Jenkins
-- SonarQube
-- PostgreSQL
-- Kubernetes cluster (Minikube)
-
-This ensures:
-
-- Reproducibility
-- Environment consistency
-- Automated provisioning
-
----
-
-## 🔁 Continuous Integration & Delivery (CI/CD)
-
-The Jenkins pipeline automates the full software lifecycle:
-
-### CI Phase
-- Source code checkout from GitHub
-- Maven build and tests
-- Static code analysis with SonarQube
-- Dependency vulnerability scanning
-
-### CD Phase
-- Docker image creation
-- Deployment using Helm
-- Canary validation
-- Automated Blue-Green traffic switching
-- Rollback-ready deployment strategy
-
----
-
-## 🔐 DevSecOps Integration
-
-Security is embedded directly into the delivery pipeline:
-
-- Static Application Security Testing (SAST) via SonarQube
-- Dynamic Application Security Testing (DAST) via OWASP ZAP
-- Automated scan execution after deployment readiness
-- Security validation before traffic switching
-
-This transforms the pipeline into a true **DevSecOps workflow** rather than a simple CI/CD pipeline.
-
----
-
-## 🔵 Blue-Green Deployment Strategy
-
-Two application versions run simultaneously:
-
-```
-
-BLUE  → Stable production version
-GREEN → Newly deployed version under validation
-
-```
-
-Traffic switching is performed at the Kubernetes Service level, enabling:
-
-- Zero downtime releases
-- Safe production updates
-- Instant rollback capability
-
----
-
-## 📊 Observability & Monitoring
-
-The platform includes a full monitoring stack:
-
-- Prometheus for metrics collection
-- Grafana dashboards for visualization
-- ServiceMonitor for automated scraping
-- Alertmanager for operational alerts
-
-Application health, Kubernetes metrics, and deployment status are continuously monitored.
-
----
-
-## 📁 Project Structure
-
-```
-
-SpringPetClinique/
-│
-├── infra/                # DevOps infrastructure (Docker Compose)
-├── k8s/                  # Kubernetes manifests
-├── helm/petclinic/       # Helm chart for deployments
-├── Jenkinsfile           # DevSecOps pipeline
-└── README.md
-
-```
-
----
-
-## ⚙️ Core Technologies
-
-- Java Spring Boot
-- Jenkins Pipeline
-- Docker
-- Kubernetes (Minikube)
-- Helm
-- SonarQube
-- OWASP ZAP
-- Prometheus
-- Grafana
-
----
-
-## 🚀 Getting Started
-
-### Start DevOps Infrastructure
-
-```
-
-cd infra
-docker compose up -d --build
-
-```
-
-### Build Application
-
-```
-
-mvn clean package
-
-```
-
-### Build Docker Image
-
-```
-
-docker build -t petclinic:v1 .
-
-```
-
-### Deploy to Kubernetes
-
-```
-
-minikube image load petclinic:v1
-kubectl apply -f k8s/
-
-```
-
-### Deploy with Helm
-
-```
-
-helm install petclinic-release ./helm/petclinic
-
-```
-
----
-
-## 🔄 Blue-Green Deployment Example
-
-Deploy new GREEN version:
-
-```
-
-helm install petclinic-green ./helm/petclinic --set versionLabel=green
-
-```
-
-Switch traffic:
-
-```
-
-kubectl patch svc petclinic-release -p '{"spec":{"selector":{"app":"petclinic","version":"green"}}}'
-
-```
-
----
-
-## 🎯 DevOps Engineering Skills Demonstrated
-
-- Infrastructure as Code Design
-- CI/CD Pipeline Engineering
-- Secure Software Delivery (DevSecOps)
-- Kubernetes Deployment Strategies
-- Helm-Based Release Management
-- Observability Engineering
-- Zero-Downtime Deployment Architecture
-
----
-
-## 👨‍💻 Author
-
-**Moetez Cherni**  
-DevOps & Cloud Engineering — Berlin University of Applied Sciences (BHT)
-
----
-```
+Bash
+kubectl port-forward svc/petclinic-release 8443:80
+URL: https://petclinic.moetez.local:8443
