@@ -1,0 +1,33 @@
+FROM jenkins/jenkins:lts-jdk21
+
+USER root
+
+# Install basic tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    docker.io \
+    conntrack
+
+# Give Jenkins access to Docker socket
+RUN groupadd -f docker && usermod -aG docker jenkins
+
+# Install kubectl
+RUN curl -LO https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+    rm kubectl
+
+# Install Helm
+RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# 🔥 INSTALL MINIKUBE (AJOUT IMPORTANT)
+RUN curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && \
+    install minikube /usr/local/bin/ && \
+    rm minikube
+
+# Verify tools
+RUN docker --version && kubectl version --client && helm version && minikube version
+
+USER jenkins

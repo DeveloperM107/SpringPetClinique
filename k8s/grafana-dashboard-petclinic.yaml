@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-petclinic
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  petclinic-dashboard.json: |
+    {
+      "title": "PetClinic - Basic",
+      "timezone": "browser",
+      "schemaVersion": 36,
+      "version": 1,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "UP (GREEN)",
+          "targets": [
+            { "expr": "up{service=\\"petclinic-metrics-green\\"}" }
+          ],
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 }
+        }
+      ]
+    }

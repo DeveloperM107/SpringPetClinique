@@ -1,0 +1,36 @@
+grafana:
+  adminPassword: admin
+
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 32000   # ⭐ OBLIGATOIRE sinon Helm ignore
+
+  sidecar:
+    dashboards:
+      enabled: true
+    datasources:
+      enabled: true
+
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: ""
+          type: file
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      springboot:
+        gnetId: 11378
+        revision: 1
+        datasource: Prometheus
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false

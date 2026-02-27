@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: petclinic-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: petclinic.rules
+    rules:
+    - alert: PodRestarting
+      expr: rate(kube_pod_container_status_restarts_total[5m]) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        description: "Pod restarting detected"

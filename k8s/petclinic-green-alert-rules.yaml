@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: petclinic-green-rules
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: petclinic-green
+      rules:
+        - alert: PetClinicGreenDown
+          expr: up{service="petclinic-metrics-green"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PetClinic GREEN is down"
+            description: "Prometheus cannot scrape GREEN for more than 1 minute."

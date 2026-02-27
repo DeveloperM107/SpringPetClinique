@@ -1,0 +1,18 @@
+
+grafana:
+  service:
+    type: NodePort
+  adminPassword: DVFPE7OkHPDHhvEs2P7C0T7mKbgYok0evkCCeueW
+
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: 'default'
+    receivers:
+      - name: 'default'
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false

@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "petclinic.fullname" . }}
+  labels:
+    app: petclinic
+    version: {{ .Values.versionLabel }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: petclinic
+      version: {{ .Values.versionLabel }}
+
+  template:
+    metadata:
+      labels:
+        app: petclinic
+        version: {{ .Values.versionLabel }}
+
+    spec:
+      serviceAccountName: {{ include "petclinic.serviceAccountName" . }}
+      containers:
+        - name: petclinic
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: 8085
+              protocol: TCP
+
+          # Probes désactivées pour stabilité (on les remettra version PRO)
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

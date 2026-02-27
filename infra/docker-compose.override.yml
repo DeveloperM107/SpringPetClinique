@@ -1,0 +1,19 @@
+services:
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: zapowasp
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - zap_data:/home/zap/.ZAP
+      - jenkins_home:/zap/wrk
+    networks:
+      - devops-net
+    command: >
+      zap.sh -daemon
+      -host 0.0.0.0
+      -port 8090
+      -config api.disablekey=true
+
+volumes:
+  zap_data:
