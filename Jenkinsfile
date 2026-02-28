@@ -251,4 +251,61 @@ pipeline {
       when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
       steps {
         timeout(time: 30, unit: 'MINUTES') {
-          input message: '🚀 Deploy to Production? Make sure minikube tunnel is running!
+          input message: '🚀 Deploy to Production? Make sure minikube tunnel is running!', ok: 'Approve & Deploy'
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      sh '''
+        kubectl get pods -n ${NAMESPACE_APP} -o wide --show-labels || true
+      '''
+      archiveArtifacts artifacts: 'zap-report.html,zap-report.json', allowEmptyArchive: true
+    }
+
+    success {
+      emailext(
+        subject: "✅ SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        mimeType: 'text/html',
+        to: "mmoetazcherni@gmail.com",
+        attachLog: true,
+        attachmentsPattern: 'zap-report.*',
+        body: """
+          <div style="font-family:Arial;background:#0f172a;color:#e2e8f0;padding:20px">
+            <h2 style="color:#22c55e;">✅ DEVSECOPS PIPELINE SUCCESS</h2>
+            <b>Project:</b> ${env.JOB_NAME}<br>
+            <b>Build:</b> #${env.BUILD_NUMBER}<br>
+            <b>Console:</b> <a style="color:#38bdf8;" href="${env.BUILD_URL}">${env.BUILD_URL}</a>
+            <hr style="border:1px solid #334155;">
+            <h3>🔒 Security</h3>ZAP scan completed — artifacts attached.<br>
+            <h3>🚀 Deployment</h3>✔ Blue-Green strategy applied<br>✔ Traffic switched to GREEN
+          </div>
+        """
+      )
+    }
+
+    failure {
+      emailext(
+        subject: "❌ FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        mimeType: 'text/html',
+        to: "mmoetazcherni@gmail.com",
+        attachLog: true,
+        attachmentsPattern: 'zap-report.*',
+        body: """
+          <h2 style="color:red;">❌ Pipeline FAILED</h2>
+          <b>Project:</b> ${env.JOB_NAME}<br>
+          <b>Build:</b> #${env.BUILD_NUMBER}<br>
+          <b>Logs:</b> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a>
+        """
+      )
+
+      sh """
+        kubectl -n ${env.NAMESPACE_APP} patch svc ${env.SERVICE_NAME} --type=merge \
+          -p '{"spec":{"selector":{"app":"petclinic","version":"blue"}}}' || true
+        echo "🔄 Rollback to BLUE completed"
+      """
+    }
+  }
+}
