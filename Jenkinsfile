@@ -10,9 +10,6 @@ pipeline {
 
   tools { maven 'M3' }
 
-  triggers {
-    pollSCM('* * * * *')
-  }
 
   parameters {
     choice(name: 'PIPELINE_MODE', choices: ['CI_CD', 'CI_ONLY', 'CD_ONLY'], description: 'Run CI only, CD only, or CI+CD')
@@ -107,7 +104,7 @@ pipeline {
           sleep 10
 
           echo "Testing port-forward..."
-          curl -s http://localhost:8085 > /dev/null && echo " Port-forward OK" || echo " Port-forward FAILED"
+          curl -k -s https://localhost:8085 > /dev/null && echo " Port-forward OK" || echo " Port-forward FAILED"
 
           docker run --rm \
             -u root \
