@@ -112,12 +112,12 @@ pipeline {
             --network ${DOCKER_NET} \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-              -t "http://${JENKINS_IP}:8085" \
-              -r zap-report.html \
-              -J zap-report.json \
-              -I \
-              --autooff
-
+            -t "https://${JENKINS_IP}:8085" \
+            -r zap-report.html \
+            -J zap-report.json \
+            -I \
+            -z "-config api.disablekey=true" \
+            --autooff
           kill $PF_PID || true
         '''
       }
