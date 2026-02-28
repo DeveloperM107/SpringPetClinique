@@ -146,6 +146,7 @@ pipeline {
             --set versionLabel=blue \
             --set image.repository=${IMAGE_REPO} \
             --set image.tag=${IMAGE_TAG} \
+            --set service.enabled=false \
             --set ingress.enabled=false
 
           kubectl -n ${NAMESPACE_APP} rollout status deploy \
@@ -163,6 +164,7 @@ pipeline {
             --set versionLabel=green \
             --set image.repository=${IMAGE_REPO} \
             --set image.tag=${IMAGE_TAG} \
+            --set service.enabled=true \
             --set-string rolloutTimestamp=$(date +%s) \
             --set ingress.enabled=false
 
@@ -179,16 +181,9 @@ pipeline {
       when { expression { params.PIPELINE_MODE != 'CI_ONLY' && params.SWITCH_TRAFFIC } }
       steps {
         sh '''
-          if ! kubectl -n ${NAMESPACE_APP} get svc ${SERVICE_NAME} >/dev/null 2>&1; then
-            kubectl -n ${NAMESPACE_APP} expose deployment ${RELEASE_GREEN} \
-              --name=${SERVICE_NAME} \
-              --port=80 \
-              --target-port=${APP_PORT} \
-              --type=LoadBalancer
-          else
-            PATCH='{"spec":{"selector":{"app":"petclinic","version":"green"},"ports":[{"port":80,"targetPort":8085,"nodePort":32629,"protocol":"TCP"}]}}'
-            kubectl -n ${NAMESPACE_APP} patch svc ${SERVICE_NAME} --type=merge -p "$PATCH"
-          fi
+          echo "Verifying service selector..."
+          kubectl -n ${NAMESPACE_APP} get svc ${SERVICE_NAME} -o jsonpath='{.spec.selector}'
+          echo ""
 
           echo "Waiting for endpoints to be ready..."
           sleep 10
@@ -256,61 +251,4 @@ pipeline {
       when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
       steps {
         timeout(time: 30, unit: 'MINUTES') {
-          input message: '🚀 Deploy to Production? Make sure minikube tunnel is running!', ok: 'Approve & Deploy'
-        }
-      }
-    }
-  }
-
-  post {
-    always {
-      sh '''
-        kubectl get pods -n ${NAMESPACE_APP} -o wide --show-labels || true
-      '''
-      archiveArtifacts artifacts: 'zap-report.html,zap-report.json', allowEmptyArchive: true
-    }
-
-    success {
-      emailext(
-        subject: "✅ SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-        mimeType: 'text/html',
-        to: "mmoetazcherni@gmail.com",
-        attachLog: true,
-        attachmentsPattern: 'zap-report.*',
-        body: """
-          <div style="font-family:Arial;background:#0f172a;color:#e2e8f0;padding:20px">
-            <h2 style="color:#22c55e;">✅ DEVSECOPS PIPELINE SUCCESS</h2>
-            <b>Project:</b> ${env.JOB_NAME}<br>
-            <b>Build:</b> #${env.BUILD_NUMBER}<br>
-            <b>Console:</b> <a style="color:#38bdf8;" href="${env.BUILD_URL}">${env.BUILD_URL}</a>
-            <hr style="border:1px solid #334155;">
-            <h3>🔒 Security</h3>ZAP scan completed — artifacts attached.<br>
-            <h3>🚀 Deployment</h3>✔ Blue-Green strategy applied<br>✔ Traffic switched to GREEN
-          </div>
-        """
-      )
-    }
-
-    failure {
-      emailext(
-        subject: "❌ FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-        mimeType: 'text/html',
-        to: "mmoetazcherni@gmail.com",
-        attachLog: true,
-        attachmentsPattern: 'zap-report.*',
-        body: """
-          <h2 style="color:red;">❌ Pipeline FAILED</h2>
-          <b>Project:</b> ${env.JOB_NAME}<br>
-          <b>Build:</b> #${env.BUILD_NUMBER}<br>
-          <b>Logs:</b> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a>
-        """
-      )
-
-      sh """
-        PATCH='{"spec":{"selector":{"app":"petclinic","version":"blue"}}}'
-        kubectl -n ${env.NAMESPACE_APP} patch svc ${env.SERVICE_NAME} -p "\$PATCH" || true
-        echo "🔄 Rollback to BLUE completed"
-      """
-    }
-  }
-}
+          input message: '🚀 Deploy to Production? Make sure minikube tunnel is running!
