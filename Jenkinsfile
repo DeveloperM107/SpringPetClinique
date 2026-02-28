@@ -35,7 +35,7 @@ pipeline {
     SERVICE_NAME      = "petclinic-release"
     NAMESPACE_APP     = "default"
     DOCKER_NET        = "infra_devops-net"
-    APP_PORT          = "8085"
+    APP_PORT          = "8443"
     JENKINS_IP        = "172.18.0.4"
     ZAP_MOUNT         = "/var/lib/docker/volumes/infra_jenkins_home/_data/workspace/PetCliniquePipeline"
   }
