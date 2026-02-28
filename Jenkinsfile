@@ -98,6 +98,64 @@ pipeline {
         sh "minikube image load ${IMAGE_NAME}"
       }
     }
+     stage('OWASP ZAP Scan') {
+      when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
+      steps {
+        sh '''
+          kubectl -n ${NAMESPACE_APP} port-forward --address 0.0.0.0 svc/${SERVICE_NAME} 8085:80 &
+          PF_PID=$!
+          sleep 10
+
+          echo "Testing port-forward..."
+          curl -s http://localhost:8085 > /dev/null && echo " Port-forward OK" || echo " Port-forward FAILED"
+
+          docker run --rm \
+            -u root \
+            -v "$PWD:/zap/wrk" \
+            --network ${DOCKER_NET} \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "http://${JENKINS_IP}:8085" \
+              -r zap-report.html \
+              -J zap-report.json \
+              -I \
+              --autooff
+
+          kill $PF_PID || true
+        '''
+      }
+    }
+
+    stage('ZAP Security Score') {
+      when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
+      steps {
+        sh '''
+          HIGH=$(grep -o '"risk":"High"'   zap-report.json | wc -l || echo 0)
+          MED=$(grep  -o '"risk":"Medium"' zap-report.json | wc -l || echo 0)
+          LOW=$(grep  -o '"risk":"Low"'    zap-report.json | wc -l || echo 0)
+
+          echo "HIGH=$HIGH"   > zap-score.env
+          echo "MEDIUM=$MED" >> zap-score.env
+          echo "LOW=$LOW"    >> zap-score.env
+
+          echo "ZAP => High:$HIGH | Medium:$MED | Low:$LOW"
+        '''
+      }
+    }
+
+    stage('Publish ZAP Report') {
+      when { expression { params.PIPELINE_MODE != 'CD_ONLY' && params.GENERATE_REPORT } }
+      steps {
+        publishHTML(target: [
+          allowMissing: true,
+          alwaysLinkToLastBuild: true,
+          keepAll: true,
+          reportDir: '.',
+          reportFiles: 'zap-report.html',
+          reportName: 'OWASP ZAP Report'
+        ])
+      }
+    }
 
    
 
