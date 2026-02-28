@@ -93,61 +93,113 @@ never goes offline during an update.
 
 7. APPLICATION ACCESS (Local FQDN Setup)
 ----------------------------------------------------------------
-I've set it up so you can access the app via a clean URL 
-instead of an IP address.
+I've set it up so you can access the app via a clean URL instead
+of an IP address.
 
-A) Update your Hosts file (Windows):
+A) Hosts file (Windows):
    Open C:\Windows\System32\drivers\etc\hosts as Admin.
-   Add this line: 127.0.0.1   petclinic.moetez.local
+   Add this line:
+   127.0.0.1 petclinic.moetez.local
 
 B) Start the Tunnel:
-   Run: kubectl port-forward svc/petclinic-release 8083:80
+   Run in PowerShell:
+   minikube tunnel
 
 C) Open your browser:
-   Link: http://petclinic.moetez.local:8083
+   Link: https://petclinic.moetez.local
 
 
 8. COMPLIANCE & REQS MET
 ----------------------------------------------------------------
-[X] IaC Approach (No manual setup)
-[X] Automated CI (Webhooks)
-[X] HA Scaling (Replicas >= 2)
-[X] Zero Downtime (Blue-Green)
-[X] Security (SAST + DAST)
-[X] Monitoring (Self-hosted stack)
-[X] Automated Rollbacks
+[X] IaC Approach        (Helm Charts - Blue/Green deployments)
+[X] Automated CI        (Jenkins pollSCM every minute)
+[X] HA Scaling          (Replicas = 2 for Blue and Green)
+[X] Zero Downtime       (Blue-Green deployment strategy)
+[X] Security            (SonarQube SAST + OWASP ZAP DAST)
+[X] Monitoring          (Prometheus + Grafana self-hosted)
+[X] Automated Rollbacks (On failure: traffic switches back to Blue)
+[X] Manual Approval     (Production deployment requires human approval)
+
 
 9. HTTPS Configuration (TLS)
 ================================================================
 
-1. Generate Keystore
-Run in project root:
+A) Generate Self-Signed Certificate with SAN
+   Run in WSL:
+   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+     -keyout /mnt/c/Users/moetez/petclinic.key \
+     -out /mnt/c/Users/moetez/petclinic.crt \
+     -subj "/CN=petclinic.moetez.local/O=petclinic" \
+     -addext "subjectAltName=DNS:petclinic.moetez.local"
 
-Bash
-keytool -genkeypair -alias petclinic -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.p12 -validity 365 -storepass password -dname "CN=petclinic.moetez.local, OU=DevSecOps, O=DevSecOps, L=Berlin, S=Berlin, C=DE"
-Move keystore.p12 to: src/main/resources/
+B) Create Kubernetes TLS Secret
+   Run in PowerShell:
+   kubectl create secret tls petclinic-tls \
+     --cert=C:\Users\moetez\petclinic.crt \
+     --key=C:\Users\moetez\petclinic.key \
+     -n default
 
-2. Spring Boot Configuration
-File: src/main/resources/application.properties
+C) Trust Certificate in Chrome (Windows)
+   - Open chrome://settings/security
+   - Gérer les certificats
+   - Autorités de certification racines de confiance
+   - Importer → petclinic.crt
+   - Redémarrer Chrome
 
-Properties
-server.port=8443
-server.ssl.enabled=true
-server.ssl.key-store=classpath:keystore.p12
-server.ssl.key-store-password=password
-server.ssl.key-store-type=PKCS12
-server.ssl.key-alias=petclinic
-3. CI CD Pipeline
 
-Build: JAR and Docker image
+10. Ingress Configuration (NGINX)
+================================================================
+Ingress acts as a reverse proxy that:
+  - Listens on port 443 (HTTPS)
+  - Terminates SSL using petclinic-tls secret
+  - Routes traffic by hostname to petclinic-release service
+  - Redirects HTTP to HTTPS automatically
 
-Deployment: Helm Blue/Green
+File: ingress.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: petclinic-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - petclinic.moetez.local
+      secretName: petclinic-tls
+  rules:
+    - host: petclinic.moetez.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: petclinic-release
+                port:
+                  number: 80
 
-Traffic: Switch to Green deployment
+Apply: kubectl apply -f ingress.yaml
 
-4. Application Access
-Local port forwarding:
 
-Bash
-kubectl port-forward svc/petclinic-release 8443:80
-URL: https://petclinic.moetez.local:8443
+11. CI/CD Pipeline
+================================================================
+Trigger:  pollSCM every minute (auto on commit)
+Stages:
+  Checkout → Build → Tests → SonarQube
+  → Docker Build → Load into Minikube
+  → Deploy BLUE (service disabled)
+  → Deploy GREEN (service enabled, selector=green)
+  → Switch Traffic to GREEN
+  → OWASP ZAP Scan
+  → ZAP Score → Publish Report
+  → Manual Approval → (Approved: done / Rejected: rollback to BLUE)
+
+
+12. Application Access
+================================================================
+  minikube tunnel must be running in PowerShell.
+
+  URL: https://petclinic.moetez.local
