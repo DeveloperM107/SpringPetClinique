@@ -37,6 +37,7 @@ pipeline {
     DOCKER_NET        = "infra_devops-net"
     APP_PORT          = "8085"
     JENKINS_IP        = "172.18.0.4"
+    ZAP_MOUNT         = "/var/lib/docker/volumes/infra_jenkins_home/_data/workspace/PetCliniquePipeline"
   }
 
   stages {
@@ -105,7 +106,7 @@ pipeline {
           mkdir -p /var/jenkins_home/.kube
 
           if [ ! -f /root/.kube/config ]; then
-            echo " /root/.kube/config not found."
+            echo "❌ /root/.kube/config not found."
             exit 1
           fi
 
@@ -196,18 +197,16 @@ pipeline {
       when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
       steps {
         sh '''
-          echo "WORKSPACE is: ${WORKSPACE}"
-
           echo "Testing app reachability..."
           curl -s http://host.docker.internal:80 > /dev/null \
-            && echo " App reachable" \
-            || echo " App not reachable — make sure minikube tunnel is running"
+            && echo "✅ App reachable" \
+            || echo "❌ App not reachable — make sure minikube tunnel is running"
 
-          WORKSPACE_PATH="${WORKSPACE}"
+          echo "ZAP mount path: ${ZAP_MOUNT}"
 
           docker run --rm \
             -u root \
-            -v "$WORKSPACE_PATH:/zap/wrk/:rw" \
+            -v "${ZAP_MOUNT}:/zap/wrk/:rw" \
             --network ${DOCKER_NET} \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
@@ -218,8 +217,8 @@ pipeline {
               --autooff
 
           echo "Checking report files..."
-          ls -lh $WORKSPACE_PATH/zap-report.html $WORKSPACE_PATH/zap-report.json \
-            || echo " Reports not found"
+          ls -lh ${WORKSPACE}/zap-report.html ${WORKSPACE}/zap-report.json \
+            || echo "❌ Reports not found"
         '''
       }
     }
@@ -259,7 +258,7 @@ pipeline {
       when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
       steps {
         timeout(time: 30, unit: 'MINUTES') {
-          input message: ' Deploy to Production? Make sure minikube tunnel is running!', ok: 'Approve & Deploy'
+          input message: '🚀 Deploy to Production? Make sure minikube tunnel is running!', ok: 'Approve & Deploy'
         }
       }
     }
@@ -275,20 +274,20 @@ pipeline {
 
     success {
       emailext(
-        subject: " SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        subject: "✅ SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
         mimeType: 'text/html',
         to: "mmoetazcherni@gmail.com",
         attachLog: true,
         attachmentsPattern: 'zap-report.*',
         body: """
           <div style="font-family:Arial;background:#0f172a;color:#e2e8f0;padding:20px">
-            <h2 style="color:#22c55e;"> DEVSECOPS PIPELINE SUCCESS</h2>
+            <h2 style="color:#22c55e;">✅ DEVSECOPS PIPELINE SUCCESS</h2>
             <b>Project:</b> ${env.JOB_NAME}<br>
             <b>Build:</b> #${env.BUILD_NUMBER}<br>
             <b>Console:</b> <a style="color:#38bdf8;" href="${env.BUILD_URL}">${env.BUILD_URL}</a>
             <hr style="border:1px solid #334155;">
-            <h3> Security</h3>ZAP scan completed — artifacts attached.<br>
-            <h3> Deployment</h3>✔ Blue-Green strategy applied<br>✔ Traffic switched to GREEN
+            <h3>🔒 Security</h3>ZAP scan completed — artifacts attached.<br>
+            <h3>🚀 Deployment</h3>✔ Blue-Green strategy applied<br>✔ Traffic switched to GREEN
           </div>
         """
       )
@@ -296,13 +295,13 @@ pipeline {
 
     failure {
       emailext(
-        subject: " FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        subject: "❌ FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
         mimeType: 'text/html',
         to: "mmoetazcherni@gmail.com",
         attachLog: true,
         attachmentsPattern: 'zap-report.*',
         body: """
-          <h2 style="color:red;"> Pipeline FAILED</h2>
+          <h2 style="color:red;">❌ Pipeline FAILED</h2>
           <b>Project:</b> ${env.JOB_NAME}<br>
           <b>Build:</b> #${env.BUILD_NUMBER}<br>
           <b>Logs:</b> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a>
@@ -312,7 +311,7 @@ pipeline {
       sh """
         kubectl -n ${env.NAMESPACE_APP} patch svc ${env.SERVICE_NAME} --type=merge \
           -p '{"spec":{"selector":{"app":"petclinic","version":"blue"}}}' || true
-        echo " Rollback to BLUE completed"
+        echo "🔄 Rollback to BLUE completed"
       """
     }
   }
