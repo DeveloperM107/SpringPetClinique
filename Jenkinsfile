@@ -35,7 +35,7 @@ pipeline {
     SERVICE_NAME      = "petclinic-release"
     NAMESPACE_APP     = "default"
     DOCKER_NET        = "infra_devops-net"
-    APP_PORT          = "8085"
+    APP_PORT          = "8443"
     JENKINS_IP        = "172.18.0.4"
   }
 
@@ -255,7 +255,7 @@ pipeline {
               --target-port=${APP_PORT} \
               --type=LoadBalancer
           else
-            PATCH='{"spec":{"selector":{"app":"petclinic","version":"green"},"ports":[{"port":80,"targetPort":8085,"protocol":"TCP"}]}}'
+            PATCH='{"spec":{"selector":{"app":"petclinic","version":"green"},"ports":[{"port":80,"targetPort":8443,"protocol":"TCP"}]}}'
             kubectl -n ${NAMESPACE_APP} patch svc ${SERVICE_NAME} -p "$PATCH"
           fi
 
