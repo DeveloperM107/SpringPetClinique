@@ -105,7 +105,7 @@ pipeline {
           mkdir -p /var/jenkins_home/.kube
 
           if [ ! -f /root/.kube/config ]; then
-            echo "❌ /root/.kube/config not found. Mount kubeconfig into the Jenkins container."
+            echo "❌ /root/.kube/config not found."
             exit 1
           fi
 
@@ -190,27 +190,9 @@ pipeline {
             kubectl -n ${NAMESPACE_APP} patch svc ${SERVICE_NAME} --type=merge -p "$PATCH"
           fi
 
+          echo "Waiting for endpoints to be ready..."
+          sleep 10
           kubectl -n ${NAMESPACE_APP} get endpoints ${SERVICE_NAME} -o wide
-        '''
-      }
-    }
-
-    stage('Start Minikube Tunnel') {
-      when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
-      steps {
-        sh '''
-          # Kill any existing tunnel
-          pkill -f "minikube tunnel" || true
-          sleep 3
-
-          # Start fresh tunnel in background
-          nohup minikube tunnel --cleanup > /tmp/minikube-tunnel.log 2>&1 &
-          echo $! > /tmp/tunnel.pid
-          sleep 15
-
-          echo "Tunnel started with PID $(cat /tmp/tunnel.pid)"
-          echo "Tunnel log:"
-          cat /tmp/minikube-tunnel.log || true
         '''
       }
     }
@@ -219,8 +201,10 @@ pipeline {
       when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
       steps {
         sh '''
-          echo "Testing app reachability via host.docker.internal:80..."
-          curl -s http://host.docker.internal:80 > /dev/null && echo "✅ App OK" || echo "❌ App not reachable"
+          echo "Testing app reachability..."
+          curl -s http://host.docker.internal:80 > /dev/null \
+            && echo "✅ App reachable" \
+            || echo "❌ App not reachable — make sure minikube tunnel is running on Windows host"
 
           docker run --rm \
             -u root \
@@ -272,7 +256,7 @@ pipeline {
       when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
       steps {
         timeout(time: 30, unit: 'MINUTES') {
-          input message: '🚀 Deploy to Production?', ok: 'Approve & Deploy'
+          input message: '🚀 Deploy to Production? Make sure minikube tunnel is running!', ok: 'Approve & Deploy'
         }
       }
     }
@@ -281,13 +265,6 @@ pipeline {
   post {
     always {
       sh '''
-        # Stop minikube tunnel
-        if [ -f /tmp/tunnel.pid ]; then
-          kill $(cat /tmp/tunnel.pid) || true
-          rm /tmp/tunnel.pid
-        fi
-        pkill -f "minikube tunnel" || true
-
         kubectl get pods -n ${NAMESPACE_APP} -o wide --show-labels || true
       '''
       archiveArtifacts artifacts: 'zap-report.html,zap-report.json', allowEmptyArchive: true
@@ -316,7 +293,7 @@ pipeline {
 
     failure {
       emailext(
-        subject: " FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        subject: "❌ FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
         mimeType: 'text/html',
         to: "mmoetazcherni@gmail.com",
         attachLog: true,
