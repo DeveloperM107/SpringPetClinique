@@ -9,11 +9,10 @@ pipeline {
   }
 
   tools { maven 'M3' }
-  
+
   triggers {
     pollSCM('* * * * *')
   }
-
 
   parameters {
     choice(name: 'PIPELINE_MODE', choices: ['CI_CD', 'CI_ONLY', 'CD_ONLY'], description: 'Run CI only, CD only, or CI+CD')
@@ -36,7 +35,7 @@ pipeline {
     SERVICE_NAME      = "petclinic-release"
     NAMESPACE_APP     = "default"
     DOCKER_NET        = "infra_devops-net"
-    APP_PORT          = "8443"
+    APP_PORT          = "8085"
     JENKINS_IP        = "172.18.0.4"
   }
 
@@ -98,76 +97,6 @@ pipeline {
         sh "minikube image load ${IMAGE_NAME}"
       }
     }
-     stage('OWASP ZAP Scan') {
-      when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
-      steps {
-        sh '''
-          kubectl -n ${NAMESPACE_APP} port-forward --address 0.0.0.0 svc/${SERVICE_NAME} 8085:80 &
-          PF_PID=$!
-          sleep 10
-
-          echo "Testing port-forward..."
-          curl -s http://localhost:8085 > /dev/null && echo " Port-forward OK" || echo " Port-forward FAILED"
-
-          docker run --rm \
-            -u root \
-            -v "$PWD:/zap/wrk" \
-            --network ${DOCKER_NET} \
-            ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py \
-              -t "http://${JENKINS_IP}:8085" \
-              -r zap-report.html \
-              -J zap-report.json \
-              -I \
-              --autooff
-
-          kill $PF_PID || true
-        '''
-      }
-    }
-
-    stage('ZAP Security Score') {
-      when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
-      steps {
-        sh '''
-          HIGH=$(grep -o '"risk":"High"'   zap-report.json | wc -l || echo 0)
-          MED=$(grep  -o '"risk":"Medium"' zap-report.json | wc -l || echo 0)
-          LOW=$(grep  -o '"risk":"Low"'    zap-report.json | wc -l || echo 0)
-
-          echo "HIGH=$HIGH"   > zap-score.env
-          echo "MEDIUM=$MED" >> zap-score.env
-          echo "LOW=$LOW"    >> zap-score.env
-
-          echo "ZAP => High:$HIGH | Medium:$MED | Low:$LOW"
-        '''
-      }
-    }
-
-    stage('Publish ZAP Report') {
-      when { expression { params.PIPELINE_MODE != 'CD_ONLY' && params.GENERATE_REPORT } }
-      steps {
-        publishHTML(target: [
-          allowMissing: true,
-          alwaysLinkToLastBuild: true,
-          keepAll: true,
-          reportDir: '.',
-          reportFiles: 'zap-report.html',
-          reportName: 'OWASP ZAP Report'
-        ])
-      }
-    }
-
-   
-
-   
-    stage('Manual Approval') {
-      when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
-      steps {
-        timeout(time: 30, unit: 'MINUTES') {
-          input message: ' Deploy to Production?', ok: 'Approve & Deploy'
-        }
-      }
-    }
 
     stage('Prepare Kubeconfig') {
       when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
@@ -176,7 +105,7 @@ pipeline {
           mkdir -p /var/jenkins_home/.kube
 
           if [ ! -f /root/.kube/config ]; then
-            echo " /root/.kube/config not found. Mount kubeconfig into the Jenkins container."
+            echo "❌ /root/.kube/config not found. Mount kubeconfig into the Jenkins container."
             exit 1
           fi
 
@@ -257,12 +186,94 @@ pipeline {
               --target-port=${APP_PORT} \
               --type=LoadBalancer
           else
-            PATCH='{"spec":{"selector":{"app":"petclinic","version":"green"},"ports":[{"port":80,"targetPort":8443,"protocol":"TCP"}]}}'
-            kubectl -n ${NAMESPACE_APP} patch svc ${SERVICE_NAME} -p "$PATCH"
+            PATCH='{"spec":{"selector":{"app":"petclinic","version":"green"},"ports":[{"port":80,"targetPort":8085,"nodePort":32629,"protocol":"TCP"}]}}'
+            kubectl -n ${NAMESPACE_APP} patch svc ${SERVICE_NAME} --type=merge -p "$PATCH"
           fi
 
           kubectl -n ${NAMESPACE_APP} get endpoints ${SERVICE_NAME} -o wide
         '''
+      }
+    }
+
+    stage('Start Minikube Tunnel') {
+      when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
+      steps {
+        sh '''
+          # Kill any existing tunnel
+          pkill -f "minikube tunnel" || true
+          sleep 3
+
+          # Start fresh tunnel in background
+          nohup minikube tunnel --cleanup > /tmp/minikube-tunnel.log 2>&1 &
+          echo $! > /tmp/tunnel.pid
+          sleep 15
+
+          echo "Tunnel started with PID $(cat /tmp/tunnel.pid)"
+          echo "Tunnel log:"
+          cat /tmp/minikube-tunnel.log || true
+        '''
+      }
+    }
+
+    stage('OWASP ZAP Scan') {
+      when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
+      steps {
+        sh '''
+          echo "Testing app reachability via host.docker.internal:80..."
+          curl -s http://host.docker.internal:80 > /dev/null && echo "✅ App OK" || echo "❌ App not reachable"
+
+          docker run --rm \
+            -u root \
+            -v "$PWD:/zap/wrk" \
+            --network ${DOCKER_NET} \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "http://host.docker.internal:80" \
+              -r zap-report.html \
+              -J zap-report.json \
+              -I \
+              --autooff
+        '''
+      }
+    }
+
+    stage('ZAP Security Score') {
+      when { expression { params.PIPELINE_MODE != 'CD_ONLY' } }
+      steps {
+        sh '''
+          HIGH=$(grep -o '"risk":"High"'   zap-report.json | wc -l || echo 0)
+          MED=$(grep  -o '"risk":"Medium"' zap-report.json | wc -l || echo 0)
+          LOW=$(grep  -o '"risk":"Low"'    zap-report.json | wc -l || echo 0)
+
+          echo "HIGH=$HIGH"   > zap-score.env
+          echo "MEDIUM=$MED" >> zap-score.env
+          echo "LOW=$LOW"    >> zap-score.env
+
+          echo "ZAP => High:$HIGH | Medium:$MED | Low:$LOW"
+        '''
+      }
+    }
+
+    stage('Publish ZAP Report') {
+      when { expression { params.PIPELINE_MODE != 'CD_ONLY' && params.GENERATE_REPORT } }
+      steps {
+        publishHTML(target: [
+          allowMissing: true,
+          alwaysLinkToLastBuild: true,
+          keepAll: true,
+          reportDir: '.',
+          reportFiles: 'zap-report.html',
+          reportName: 'OWASP ZAP Report'
+        ])
+      }
+    }
+
+    stage('Manual Approval') {
+      when { expression { params.PIPELINE_MODE != 'CI_ONLY' } }
+      steps {
+        timeout(time: 30, unit: 'MINUTES') {
+          input message: '🚀 Deploy to Production?', ok: 'Approve & Deploy'
+        }
       }
     }
   }
@@ -270,6 +281,13 @@ pipeline {
   post {
     always {
       sh '''
+        # Stop minikube tunnel
+        if [ -f /tmp/tunnel.pid ]; then
+          kill $(cat /tmp/tunnel.pid) || true
+          rm /tmp/tunnel.pid
+        fi
+        pkill -f "minikube tunnel" || true
+
         kubectl get pods -n ${NAMESPACE_APP} -o wide --show-labels || true
       '''
       archiveArtifacts artifacts: 'zap-report.html,zap-report.json', allowEmptyArchive: true
@@ -277,20 +295,20 @@ pipeline {
 
     success {
       emailext(
-        subject: " SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        subject: "✅ SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
         mimeType: 'text/html',
         to: "mmoetazcherni@gmail.com",
         attachLog: true,
         attachmentsPattern: 'zap-report.*',
         body: """
           <div style="font-family:Arial;background:#0f172a;color:#e2e8f0;padding:20px">
-            <h2 style="color:#22c55e;"> DEVSECOPS PIPELINE SUCCESS</h2>
+            <h2 style="color:#22c55e;">✅ DEVSECOPS PIPELINE SUCCESS</h2>
             <b>Project:</b> ${env.JOB_NAME}<br>
             <b>Build:</b> #${env.BUILD_NUMBER}<br>
             <b>Console:</b> <a style="color:#38bdf8;" href="${env.BUILD_URL}">${env.BUILD_URL}</a>
             <hr style="border:1px solid #334155;">
-            <h3> Security</h3>ZAP scan completed — artifacts attached.<br>
-            <h3> Deployment</h3>✔ Blue-Green strategy applied<br>✔ Traffic switched to GREEN
+            <h3>🔒 Security</h3>ZAP scan completed — artifacts attached.<br>
+            <h3>🚀 Deployment</h3>✔ Blue-Green strategy applied<br>✔ Traffic switched to GREEN
           </div>
         """
       )
@@ -304,7 +322,7 @@ pipeline {
         attachLog: true,
         attachmentsPattern: 'zap-report.*',
         body: """
-          <h2 style="color:red;"> Pipeline FAILED</h2>
+          <h2 style="color:red;">❌ Pipeline FAILED</h2>
           <b>Project:</b> ${env.JOB_NAME}<br>
           <b>Build:</b> #${env.BUILD_NUMBER}<br>
           <b>Logs:</b> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a>
@@ -314,7 +332,7 @@ pipeline {
       sh """
         PATCH='{"spec":{"selector":{"app":"petclinic","version":"blue"}}}'
         kubectl -n ${env.NAMESPACE_APP} patch svc ${env.SERVICE_NAME} -p "\$PATCH" || true
-        echo " Rollback to BLUE completed"
+        echo "🔄 Rollback to BLUE completed"
       """
     }
   }
