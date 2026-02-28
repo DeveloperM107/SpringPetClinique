@@ -9,6 +9,10 @@ pipeline {
   }
 
   tools { maven 'M3' }
+  
+  triggers {
+    pollSCM('* * * * *')
+  }
 
 
   parameters {
