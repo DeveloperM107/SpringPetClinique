@@ -17,11 +17,11 @@ serviceAccount:
 
 podAnnotations: {}
 podLabels: {}
-
 podSecurityContext: {}
 securityContext: {}
 
 service:
+  enabled: true
   type: LoadBalancer
   port: 80
   targetPort: 8085
@@ -41,15 +41,15 @@ httpRoute:
   enabled: false
   annotations: {}
   parentRefs:
-  - name: gateway
-    sectionName: http
+    - name: gateway
+      sectionName: http
   hostnames:
-  - chart-example.local
+    - chart-example.local
   rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /headers
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /headers
 
 resources: {}
 
@@ -57,6 +57,7 @@ livenessProbe:
   httpGet:
     path: /
     port: 8085
+
 readinessProbe:
   httpGet:
     path: /
@@ -70,9 +71,8 @@ autoscaling:
 
 volumes: []
 volumeMounts: []
-
 nodeSelector: {}
 tolerations: []
 affinity: {}
 
-versionLabel: blue
+versionLabel: green
